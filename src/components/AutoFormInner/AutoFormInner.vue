@@ -1,6 +1,7 @@
 <script>
 import _ from "lodash";
 export default {
+  name: "AutoFormInner",
   props: {
     value: {
       required: true
@@ -22,27 +23,25 @@ export default {
   methods: {
     changeVal(inputVal, val) {
       let value = "";
-      if (val.type === "input") {
-        if (typeof inputVal === "object") {
-          value = inputVal.target.value;
-        } else {
-          value = inputVal;
-        }
+      if (val.type === "input" && typeof inputVal === "object") {
+        value = inputVal.target.value;
       } else if (val.type === "select") {
-        if (typeof inputVal === "object") {
+        // 多选
+        if (Array.isArray(inputVal) && val.props.labelInValue) {
+          value = inputVal.map(item => item.value);
+        } else if (typeof inputVal === "object") {
           value = inputVal.value;
         } else {
           value = inputVal;
         }
+      } else {
+        value = inputVal;
       }
-
-      const newVal = _.set(this.submitForm, val.key, value);
-      this.submitForm = _.assign({}, newVal);
+      this.$set(this.submitForm, [val.key], value);
     }
   },
   created() {
     const event = this.item.on;
-
     if (typeof event !== "undefined" && "on-change" in event) {
       const bindOnChange = event["on-change"].bind(this);
       event["on-change"] = value => {
@@ -86,7 +85,7 @@ export default {
                             val.props.placeholder || `请输入${val.label}`
                         }
                       }}
-                      value={_.get(this.submitForm, val.key)}
+                      value={this.submitForm[val.key]}
                       on={{
                         "on-change": value => {
                           this.changeVal(value, val);
@@ -110,7 +109,7 @@ export default {
                             val.props.placeholder || `请输入${val.label}`
                         }
                       }}
-                      value={_.get(this.submitForm, val.key) || 0}
+                      value={this.submitForm[val.key]}
                       on={{
                         "on-change": value => {
                           this.changeVal(value, val);
@@ -134,7 +133,7 @@ export default {
                             val.props.placeholder || `请选择${val.label}`
                         }
                       }}
-                      value={_.get(this.submitForm, val.key)}
+                      value={this.submitForm[val.key]}
                       on={{
                         "on-change": value => {
                           this.changeVal(value, val);
@@ -145,35 +144,12 @@ export default {
                       {_.map(val.options, value => {
                         return (
                           <i-option
-                            value={
-                              value[
-                                val.option
-                                  ? val.option.code
-                                    ? val.option.code
-                                    : "value"
-                                  : "value"
-                              ]
-                            }
+                            key={value[val.option.code || "value"]}
+                            value={value[val.option.code || "value"]}
                           >
-                            {
-                              value[
-                                val.option
-                                  ? val.option.label
-                                    ? val.option.label
-                                    : "label"
-                                  : "label"
-                              ]
-                            }
+                            {value[val.option.label || "label"]}
                             {val.props.labelInValue
-                              ? `( ${
-                                  value[
-                                    val.option
-                                      ? val.option.code
-                                        ? val.option.code
-                                        : "value"
-                                      : "value"
-                                  ]
-                                })`
+                              ? `( ${value[val.option.code || "value"]})`
                               : null}
                           </i-option>
                         );
@@ -192,7 +168,7 @@ export default {
                             val.props.placeholder || `请选择${val.label}`
                         }
                       }}
-                      value={_.get(this.submitForm, val.key)}
+                      value={this.submitForm[val.key]}
                       onOn-change={value => {
                         this.changeVal(value, val);
                       }}
@@ -210,7 +186,7 @@ export default {
                             val.props.placeholder || `请输入${val.label}`
                         }
                       }}
-                      value={_.get(this.submitForm, val.key)}
+                      value={this.submitForm[val.key]}
                       onInput={value => {
                         this.changeVal(value, val);
                       }}

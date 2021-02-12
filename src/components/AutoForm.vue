@@ -1,22 +1,34 @@
 <template>
   <div class="autoForm">
-    <Form class="form"
-          ref="autoForm"
-          inline
-          :labelWidth="labelWidth"
-          :model="submitForm"
-          v-bind="$attrs"
-          v-on="$listeners">
-      <FormItem v-for="item in fields"
-                :style="itemStyle(item)"
-                :label="item.label"
-                :key="item.key"
-                :prop="prop(item)"
-                :rules="validatorsHandler(item)">
-        <AutoFormInner :item="item"
-                       ref="autoFormInner"
-                       v-model="submitForm"></AutoFormInner>
-      </FormItem>
+    <Form
+      class="form"
+      ref="autoForm"
+      inline
+      :labelWidth="labelWidth"
+      :model="submitForm"
+      v-bind="$attrs"
+      v-on="$listeners"
+      @on-validate="validated"
+    >
+      <template v-for="item in fields">
+        <FormItem
+          :label-width="!!item.props ? item.props.labelWidth : labelWidth"
+          :style="itemStyle(item)"
+          :label="item.label"
+          :class="[`form-item-${item.type}`]"
+          :key="item.key || null"
+          :prop="prop(item)"
+          :rules="validatorsHandler(item)"
+          :ref="item.key"
+          v-if="typeof item.show === 'undefined' ? true : item.show"
+        >
+          <AutoFormInner
+            :item="item"
+            ref="autoFormInner"
+            v-model="submitForm"
+          ></AutoFormInner>
+        </FormItem>
+      </template>
     </Form>
   </div>
 </template>
@@ -50,37 +62,10 @@ export default {
   components: {
     AutoFormInner
   },
-  beforeMount() {
-    const arr = this.value;
-    _.map(this.fields, val => {
-      if (typeof val.key !== "undefined") {
-        if (_.isEmpty(_.get(arr, val.key))) {
-          if (val.type === "inputnumber") {
-            _.set(arr, val.key, 0);
-          } else {
-            _.set(arr, val.key, "");
-          }
-        }
-      }
-    });
-    this.submitForm = arr;
-  },
-  watch: {
-    fields(val, oldVal) {
-      const arr = this.value;
-      _.map(this.fields, val => {
-        if (typeof val.key !== "undefined") {
-          if (_.isEmpty(_.get(arr, val.key))) {
-            if (val.type === "inputnumber") {
-              _.set(arr, val.key, 0);
-            } else {
-              _.set(arr, val.key, "");
-            }
-          }
-        }
-      });
-      this.submitForm = arr;
-    }
+  data() {
+    return {
+      validateErrorList: []
+    };
   },
   computed: {
     labelWidth() {
@@ -101,6 +86,12 @@ export default {
       set(val) {
         this.$emit("input", val);
       }
+    },
+    fieldsMap() {
+      return this.fields.reduce((map, item, index) => {
+        map[item.key] = index;
+        return map;
+      }, {});
     }
   },
   methods: {
@@ -115,15 +106,7 @@ export default {
       }
     },
     prop(item) {
-      if (typeof item.key !== "undefined") {
-        if (_.has(this.submitForm, item.key)) {
-          return item.key;
-        } else {
-          console.error(
-            `modelKey:${item.key}存在多级key为空情况.请在model里面加入父节点`
-          );
-        }
-      }
+      return item.key;
     },
     itemStyle(item) {
       const num = item.num ? item.num : 1;
@@ -145,7 +128,13 @@ export default {
     resetFields() {
       this.$refs.autoForm.resetFields();
       this.deleteUnnecessaryProp();
-      //this.reset(this.submitForm);
+    },
+    resetField(name) {
+      this.$refs.autoForm.fields.forEach(item => {
+        if (!name || item.prop === name) {
+          item.resetField();
+        }
+      });
     },
     deleteUnnecessaryProp() {
       const submitFormKey = Object.keys(this.submitForm);
@@ -154,12 +143,47 @@ export default {
           return field.key === key;
         });
         if (!findProp) {
-          delete this.submitForm[key];
+          this.$delete(this.submitForm, key, null);
         }
       });
     },
-    validate(fn) {
-      this.$refs.autoForm.validate(fn);
+    validateScroll() {
+      const prop = this.validateErrorList.filter(item => item).shift();
+      const instance = Array.isArray(this.$refs[prop])
+        ? this.$refs[prop][0]
+        : this.$refs[prop];
+      this.validateErrorList = [];
+      const { top } = instance.$el.getBoundingClientRect();
+      if (
+        instance.$children[0].$children[0].$options._componentTag === "Input" &&
+        instance.$children[0].$children[0].focus
+      ) {
+        instance.$children[0].$children[0].focus();
+      } else if (top > window.innerHeight) {
+        window.scrollTo(0, top - window.innerHeight / 2);
+      } else {
+        window.scrollTo(0, top / 2);
+      }
+    },
+    async validate(fn) {
+      const valid = await this.$refs.autoForm.validate(fn);
+      if (!valid) {
+        this.validateScroll();
+      }
+      return valid;
+    },
+    validated(prop, status, error) {
+      if (!status) {
+        if (!this.validateErrorList.includes(prop)) {
+          this.validateErrorList[this.fieldsMap[prop]] = prop;
+        }
+      } else {
+        const findIndex = this.validateErrorList.indexOf(prop);
+        if (findIndex > -1) {
+          this.validateErrorList.splice(findIndex, 1);
+        }
+      }
+      this.$emit("on-validate", prop, status, error);
     },
     validatorsHandler(item) {
       item.validators = item.validators ? item.validators : [];
@@ -168,13 +192,28 @@ export default {
         : item.validators;
 
       validators.forEach(valid => {
-        valid.message = valid.message
-          ? valid.message
-          : `${item.type === "input" ? "请输入" : "请选择"}${item.label}`;
+        if (valid.hasOwnProperty("validator")) {
+          return valid.validator;
+        } else {
+          valid.message = valid.hasOwnProperty("message")
+            ? valid.message
+            : item.type === "input" || item.type === "inputnumber"
+            ? `请输入${item.label}`
+            : `请选择${item.label}`;
+        }
       });
 
       return validators;
+    },
+    validateField(prop, callback) {
+      this.$refs.autoForm.validateField(prop, callback);
     }
+    // validateHandler(prop, status, error) {
+    //   console.log(prop, status, error);
+    // }
+  },
+  mounted() {
+    console.log(this.$refs.autoForm);
   }
 };
 </script>

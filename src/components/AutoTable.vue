@@ -3,26 +3,33 @@
     <!-- 头部插槽内容 -->
     <slot name="header"></slot>
     <!-- 块级元素 不需要Row/div嵌套 -->
-    <Table :loading="tableIsLoading"
-           ref="table"
-           :columns="columns"
-           :data="tableData"
-           v-bind="$attrs"
-           v-on="$listeners"></Table>
-    <div class="page"
-         v-if="tableData && tableData.length > 0"
-         v-show="!hidePage">
-      <Page v-on="$listeners"
-            class="pagebar"
-            @on-page-size-change="pageSizeChange"
-            :current="tableCurrentPage"
-            :show-sizer="!showSize"
-            show-elevator
-            :page-size="tablePageSize"
-            :total="tableTotalRows"
-            show-total
-            @on-change="onPageChange"
-            :transfer="transfer"></Page>
+    <Table
+      :loading="tableIsLoading"
+      ref="table"
+      row-key
+      :columns="columns"
+      :data="tableData"
+      v-bind="$attrs"
+      v-on="$listeners"
+    ></Table>
+    <div
+      class="page"
+      v-if="tableData && tableData.length > 0"
+      v-show="!hidePage"
+    >
+      <Page
+        v-on="$listeners"
+        class="pagebar"
+        @on-page-size-change="pageSizeChange"
+        :current="tableCurrentPage"
+        :show-sizer="!showSize"
+        show-elevator
+        :page-size="tablePageSize"
+        :total="tableTotalRows"
+        show-total
+        @on-change="onPageChange"
+        :transfer="transfer"
+      ></Page>
     </div>
   </Card>
 </template>
@@ -33,6 +40,9 @@ export default {
   name: "AutoTable",
   inheritAttrs: false,
   props: {
+    loadData: {
+      type: Function
+    },
     method: {
       type: String,
       default: "get"
@@ -43,12 +53,12 @@ export default {
     },
     url: {
       type: String,
-      default: "",
-      required: true,
-      validator: value => {
-        // 这个值必须匹配下列字符串中的一个
-        return value !== "";
-      }
+      default: ""
+      //required: true,
+      // validator: value => {
+      //   // 这个值必须匹配下列字符串中的一个
+      //   return value !== "";
+      // }
     }, //接口地址
     path: {
       type: String,
@@ -104,7 +114,16 @@ export default {
         if (item.key && !_.has(item, "render") && item.key == "action") {
           let arr = [];
           _.map(item.buttons, val => {
-            arr.push(<span class="button">{val}</span>);
+            if (typeof val === "string") {
+              arr.push(<span class="button">{val}</span>);
+            } else if (Object.prototype.toString(val) === "[object Object]") {
+              const directives = val.directives || [];
+              arr.push(
+                <span class="button" {...{ directives }}>
+                  {val.label}
+                </span>
+              );
+            }
           });
           item.render = (h, params) => {
             return (
@@ -138,9 +157,18 @@ export default {
         // 捕获到url属性发生变化 刷新下数据
         this.refresh();
       }
+    },
+    path(path) {
+      if (path) {
+        // 捕获到path属性发生变化 刷新下数据
+        this.refresh();
+      }
     }
   },
   methods: {
+    exportData(params) {
+      this.$refs.autoTable.exportCsv(params);
+    },
     selectAll(status) {
       this.$refs.table.selectAll(status);
     },
@@ -169,7 +197,22 @@ export default {
         : require("axios")
         ? require("axios")
         : window.axios;
-      axios[this.method](this.url, this.method === "get" ? { params } : params)
+      const pAjax = new Promise((resolve, reject) => {
+        if (typeof this.loadData === "function" && !this.url) {
+          this.loadData(params).then(response => {
+            resolve(response);
+          });
+        } else {
+          axios[this.method](
+            this.url,
+            this.method === "get" ? { params } : params
+          ).then(response => {
+            resolve(response);
+          });
+        }
+      });
+
+      pAjax
         .then(response => {
           // 使用箭头函数获取this
           this.tableIsLoading = false;
@@ -188,7 +231,7 @@ export default {
         })
         .catch(error => {
           // 接口请求失败
-          console.log(error);
+          window.console.log(error);
           this.tableIsLoading = false;
         });
     },

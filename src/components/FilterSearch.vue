@@ -1,18 +1,4 @@
 <script>
-import {
-  CheckboxGroup,
-  Form,
-  Checkbox,
-  Button,
-  Input,
-  Icon,
-  Dropdown,
-  DropdownMenu,
-  DropdownItem,
-  RadioGroup,
-  Radio
-} from "iview";
-import "animate.css";
 import _ from "lodash";
 export default {
   name: "FilterSearch",
@@ -35,7 +21,10 @@ export default {
         return 3;
       }
     },
-
+    showFixBarCheckbox: {
+      type: Boolean,
+      default: false
+    },
     columns: {
       type: Array,
       required: true
@@ -74,7 +63,7 @@ export default {
     },
     hideShow() {
       this.hideShowClicked = true;
-      this.rowNum = !this.show ? 5 : this.rowNumProp;
+      //this.rowNum = this.rowNumProp; //!this.show ? 5 : this.rowNumProp;
       this.show = !this.show;
     },
     getValue(valuekey, valKey) {
@@ -136,6 +125,7 @@ export default {
         _.map(row, val => {
           let num = val.num ? val.num : 1;
           currentNum = currentNum + num;
+
           arr.push(
             <div
               class="itemOption"
@@ -268,13 +258,11 @@ export default {
       });
 
       if (_.isEmpty(checkboxs)) {
-        /* eslint-disable */
         console.info("checkboxs为空");
         return {};
       } else {
         _.map(checkboxs, checkbox => {
           if (!_.has(checkbox, "datas")) {
-            /* eslint-disable */
             console.error(`checkboxs需要datas,结构如下:
             datas: [
               { label: "aa", key: "gg", value: "aa" },
@@ -284,7 +272,6 @@ export default {
             flag = false;
           }
           if (!_.has(checkbox, "key")) {
-            /* eslint-disable */
             flag = false;
             console.error("checkboxs的key必传");
           }
@@ -340,7 +327,7 @@ export default {
       }
     }
   },
-  render(h) {
+  render() {
     // let allRow = [];
     let rowNum = this.rowNum;
     let inputDatas = _.get(this.inputs, "datas");
@@ -349,10 +336,7 @@ export default {
     let height = this.$refs.filterSearch
       ? this.$refs.filterSearch.offsetHeight + 10
       : 0;
-    // 52 +
-    // (this.show ? Math.floor(inputDatas.length / rowNum) * 42 : 0) +
-    // (this.checkboxs || this.radioboxs ? 35 : 0) +
-    // 11;
+
     let otherButtons = _.filter(
       datas,
       item => item.label != "查询" && item.label != "重置"
@@ -365,7 +349,7 @@ export default {
         >
           <Form>
             <div class="top">
-              <div class={["InputList", this.show ? "w70" : "w50"]}>
+              <div class={["InputList", this.show ? "w50" : "w50"]}>
                 {this.renderInputs(rowNum, inputDatas, rowArray)}
               </div>
               <div class="rightList animated">
@@ -391,8 +375,11 @@ export default {
                       item => item.label == "查询" || item.label == "重置"
                     ),
                     val => {
+                      const directives = val.directives || [];
+
                       return (
                         <Button
+                          {...{ directives }}
                           type="primary"
                           onClick={() => this.doAction(val.action)}
                         >
@@ -415,8 +402,11 @@ export default {
                 >
                   {_.map(otherButtons, (val, index) => {
                     if (index < 2) {
+                      const directives = val.directives || [];
+
                       return (
                         <Button
+                          {...{ directives }}
                           type="primary"
                           onClick={() => this.doAction(val.action)}
                         >
@@ -436,10 +426,15 @@ export default {
                       </Button>
                       <DropdownMenu slot="list">
                         {_.map(otherButtons, (val, index) => {
+                          const directives = val.directives || [];
+
                           if (index >= 2) {
                             return (
                               <DropdownItem>
-                                <div onClick={() => this.doAction(val.action)}>
+                                <div
+                                  {...{ directives }}
+                                  onClick={() => this.doAction(val.action)}
+                                >
                                   {val.label}
                                 </div>
                               </DropdownItem>
@@ -452,12 +447,14 @@ export default {
                 </div>
               </div>
             </div>
-            {!_.isEmpty(this.checkboxs) ? (
-              <div class="bottom" style="flex-wrap:wrap;">
+            {this.$slots.footer ? (
+              this.$slots.footer
+            ) : !_.isEmpty(this.checkboxs) ? (
+              <div class="bottom">
                 {_.map(this.checkboxs, checkbox => {
                   return (
                     <div class="bottom first">
-                      <span style="flex-shrink:0;">
+                      <span class="preExplain">
                         {checkbox.preExplain
                           ? checkbox.preExplain
                           : "筛选条件:"}
@@ -520,7 +517,7 @@ export default {
               </div>
             ) : null}
 
-            {this.show ? (
+            {this.show && this.showFixBarCheckbox ? (
               <div class="fixedTextContain">
                 <span class="fixedText">
                   <Checkbox
@@ -545,15 +542,17 @@ export default {
 <style lang="less" scoped>
 .contain {
   width: 100%;
+  // margin-bottom: 10px;
 }
 .filterSearch {
+  .ivu-checkbox-wrapper {
+    font-size: 12px !important;
+  }
   flex: 1;
   background: #f5f5f5;
-  padding: 10px;
+  padding: 10px 16px 0;
   position: relative;
-  top: -10px;
-  left: -10px;
-  width: calc(~"100% + 20px");
+  width: 100%;
   .w70 {
     width: 70% !important;
   }
@@ -587,7 +586,8 @@ export default {
       display: flex;
       flex-wrap: wrap;
       .itemOption {
-        height: 42px;
+        height: 33px;
+
         overflow: hidden;
         text-align: left;
         padding-right: 10px;
@@ -598,7 +598,7 @@ export default {
     }
     .rightList {
       width: 50%;
-      height: 42px;
+      height: 32px;
       display: flex;
       justify-content: space-between;
       .hideShow {
@@ -618,7 +618,7 @@ export default {
         }
       }
       button {
-        margin: 0px 10px 10px;
+        margin: 0 0 10px 10px;
         width: 70px;
         height: 33px;
       }
@@ -627,10 +627,16 @@ export default {
   .oneRow {
     width: 100%;
     display: flex;
+    margin-bottom: 10px;
   }
   .bottom {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    .preExplain {
+      flex-shrink: 0;
+      margin-right: 5px;
+    }
     .first {
       margin-right: 10px;
       font-size: 12px;

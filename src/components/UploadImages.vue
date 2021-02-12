@@ -6,7 +6,7 @@
         <div class="demo-upload-list-cover">
           <Icon
             type="ios-eye-outline"
-            @click.native="handleView(item.name)"
+            @click.native="handleView(item.url)"
           ></Icon>
           <Icon
             type="ios-trash-outline"
@@ -27,12 +27,13 @@
       :show-upload-list="false"
       :default-file-list="defaultList"
       :on-success="handleSuccess"
-      :format="['jpg', 'jpeg', 'png']"
+      :format="format"
       :max-size="2048"
       :on-format-error="handleFormatError"
       :on-exceeded-size="handleMaxSize"
       :before-upload="handleBeforeUpload"
       :action="action"
+      :headers="headers"
       multiple
       name="files"
       type="drag"
@@ -58,9 +59,18 @@ export default {
     event: "change"
   },
   props: {
+    format: {
+      type: Array,
+      default() {
+        return ["jpg", "jpeg", "png", "ico"];
+      }
+    },
     list: {
       type: String,
       required: true
+    },
+    path: {
+      type: String
     },
     max: {
       type: Number
@@ -69,6 +79,14 @@ export default {
       type: String,
       default() {
         return "/file/files";
+      }
+    },
+    headers: {
+      type: Object,
+      default() {
+        return localStorage.getItem("token")
+          ? { Authorization: localStorage.getItem("token") }
+          : {};
       }
     }
   },
@@ -97,8 +115,8 @@ export default {
     };
   },
   methods: {
-    handleView(name) {
-      this.imgName = name;
+    handleView(url) {
+      this.imgName = url;
       this.visible = true;
     },
     sync() {
@@ -115,7 +133,9 @@ export default {
     },
     handleSuccess(res, file) {
       if (res && res.result == 0) {
-        file.url = res.retVal[0];
+        const url = this.path ? _.get(res, this.path) : res.retVal[0];
+        file.url = url;
+        this.imgName = url;
         this.sync();
         this.uploadList = this.$refs.upload.fileList;
       } else {
@@ -125,7 +145,7 @@ export default {
     handleFormatError(file) {
       this.$Notice.warning({
         title: file.name + "的文件名不正确",
-        desc: "请上传jpg或者png结尾的图片"
+        desc: "请上传图片"
       });
     },
     handleMaxSize(file) {
